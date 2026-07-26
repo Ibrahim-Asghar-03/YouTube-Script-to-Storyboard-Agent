@@ -7,6 +7,7 @@ from graph.state import StoryboardState, Beat, ShotType
 from graph.prompts import PARSER_PROMPT, PLANNER_PROMPT
 from tools.broll_search import search_broll
 from graph.state import BRollAsset
+from tools.pacing_utils import evaluate_beat_pacing
 
 def get_llm():
     provider = os.environ.get("LLM_PROVIDER", "anthropic").lower()
@@ -134,3 +135,14 @@ def broll_search_node(state: StoryboardState) -> dict:
         updated_beats.append(b)
         
     return {"beats": updated_beats}
+
+# ---- Node 4: PacingReviewAgent (rule-based, no LLM) ----------------------
+def pacing_review_node(state: StoryboardState) -> dict:
+    updated_beats = []
+    for b in state.beats:
+        flagged, feedback = evaluate_beat_pacing(b)
+        updated_beats.append(b.model_copy(update={
+            "pacing_flag": flagged,
+            "pacing_feedback": feedback,
+        }))
+    return {"beats": updated_beats, "loop_count": state.loop_count + 1}
