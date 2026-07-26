@@ -4,34 +4,30 @@ import os
 load_dotenv()
 
 from graph.state import StoryboardState
-from graph.nodes import script_parser_node, shot_planner_node, broll_search_node, pacing_review_node
+from graph.graph_builder import build_graph
 
-def test_pipeline():
+def test_full_agent():
     with open("sample_scripts/sample1.txt", "r") as f:
         script_text = f.read()
         
-    print("Initializing State...")
-    state = StoryboardState(raw_script=script_text)
+    print("Compiling Agent Graph...")
+    agent = build_graph()
     
-    state_dict = script_parser_node(state)
-    state = state.model_copy(update={"beats": state_dict["beats"]})
+    print("Invoking Pipeline (This might take 15-30 seconds depending on API speed)...\n")
     
-    state_dict = shot_planner_node(state)
-    state = state.model_copy(update={"beats": state_dict["beats"]})
+    # We pass the raw dict from agent.invoke() back into our Pydantic model for strict validation
+    raw_result = agent.invoke({"raw_script": script_text})
+    final_state = StoryboardState.model_validate(raw_result)
     
-    state_dict = broll_search_node(state)
-    state = state.model_copy(update={"beats": state_dict["beats"]})
+    print("=== FINAL OUTPUT ===")
+    print(f"Total Revision Loops Executed: {final_state.loop_count - 1}\n")
     
-    print("Running PacingReviewAgent (Node 4)...")
-    result = pacing_review_node(state)
-    
-    print("\n--- PACING REVIEW RESULTS ---\n")
-    for beat in result["beats"]:
-        status = "❌ FLAGGED" if beat.pacing_flag else "✅ PASSED"
-        print(f"Beat {beat.beat_id} | {beat.estimated_duration_seconds}s | {beat.shot_type.upper()} | {status}")
-        if beat.pacing_flag:
-            print(f"  Reason: {beat.pacing_feedback}")
+    for beat in final_state.beats:
+        print(f"[{beat.beat_id}] {beat.estimated_duration_seconds}s | {beat.shot_type.upper()}")
+        print(f"Text: {beat.text}")
+        if beat.shot_type == "b_roll" and beat.broll_assets:
+            print(f"B-Roll: {beat.broll_assets[0].video_url}")
         print("-" * 40)
 
 if __name__ == "__main__":
-    test_pipeline()
+    test_full_agent()
