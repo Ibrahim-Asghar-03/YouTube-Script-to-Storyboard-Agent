@@ -5,6 +5,8 @@ from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
 from graph.state import StoryboardState, Beat, ShotType
 from graph.prompts import PARSER_PROMPT, PLANNER_PROMPT
+from tools.broll_search import search_broll
+from graph.state import BRollAsset
 
 def get_llm():
     provider = os.environ.get("LLM_PROVIDER", "anthropic").lower()
@@ -111,6 +113,24 @@ def shot_planner_node(state: StoryboardState) -> dict:
                 "pacing_flag": False,       # reset — being re-evaluated this pass
                 "pacing_feedback": None,
             })
+        updated_beats.append(b)
+        
+    return {"beats": updated_beats}
+
+# ---- Node 3: BRollSearchAgent (pure tool call, no LLM) ------------------
+def broll_search_node(state: StoryboardState) -> dict:
+    updated_beats = []
+    for b in state.beats:
+        # Idempotent: skip beats that already have assets and weren't re-flagged
+        # don't burn API quota re-querying unchanged beats.
+        if b.shot_type == ShotType.B_ROLL and b.broll_search_terms:
+            if not b.broll_assets:  
+                assets: list[BRollAsset] = []
+                for term in b.broll_search_terms[:2]:  # cap calls per beat
+                    for r in search_broll(term)[:1]:   # top hit per term
+                        assets.append(BRollAsset(**r)) # validate into typed model
+                
+                b = b.model_copy(update={"broll_assets": assets})
         updated_beats.append(b)
         
     return {"beats": updated_beats}

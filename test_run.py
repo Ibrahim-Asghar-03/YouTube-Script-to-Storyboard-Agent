@@ -6,7 +6,7 @@ load_dotenv()
 
 # 2. IMPORT MODULES SECOND
 from graph.state import StoryboardState
-from graph.nodes import script_parser_node, shot_planner_node
+from graph.nodes import script_parser_node, shot_planner_node, broll_search_node
 
 def test_pipeline():
     with open("sample_scripts/sample1.txt", "r") as f:
@@ -17,22 +17,26 @@ def test_pipeline():
     
     print("Running ScriptParserAgent (Node 1)...")
     state_dict = script_parser_node(state)
-    
-    # Update state with parsed beats
     state = state.model_copy(update={"beats": state_dict["beats"]})
     
     print("Running ShotPlannerAgent (Node 2)...")
-    result = shot_planner_node(state)
+    state_dict = shot_planner_node(state)
+    state = state.model_copy(update={"beats": state_dict["beats"]})
     
-    print("\n--- FINAL STORYBOARD PLAN ---\n")
+    print("Running BRollSearchAgent (Node 3)...")
+    result = broll_search_node(state)
+    
+    print("\n--- FINAL STORYBOARD PLAN WITH MEDIA ---\n")
     for beat in result["beats"]:
-        print(f"Beat {beat.beat_id} | {beat.estimated_duration_seconds}s")
-        print(f"Text: {beat.text}")
-        print(f"Shot Type: {beat.shot_type.upper() if beat.shot_type else 'NONE'}")
-        print(f"Notes: {beat.shot_notes}")
-        if beat.broll_search_terms:
-            print(f"Search Terms: {', '.join(beat.broll_search_terms)}")
-        print("-" * 40)
+        if beat.shot_type == "b_roll":
+            print(f"Beat {beat.beat_id} | B-ROLL FOUND:")
+            if not beat.broll_assets:
+                print("  No assets retrieved (check API keys or terms).")
+            for asset in beat.broll_assets:
+                print(f"  - Source: {asset.source}")
+                print(f"  - Thumbnail: {asset.thumbnail_url}")
+                print(f"  - Video: {asset.video_url}")
+            print("-" * 40)
 
 if __name__ == "__main__":
     test_pipeline()
