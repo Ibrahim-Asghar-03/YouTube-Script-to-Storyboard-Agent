@@ -1,7 +1,6 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
 from typing import Optional
-
 
 class ShotType(str, Enum):
     TALKING_HEAD = "talking_head"
@@ -10,16 +9,15 @@ class ShotType(str, Enum):
     SCREEN_RECORDING = "screen_recording"
     GRAPHIC_CHART = "graphic_chart"
 
-
 class BRollAsset(BaseModel):
-    source: str                 # "pexels" | "pixabay"
+    source: str                 
     video_url: str
     thumbnail_url: str
     duration_seconds: float
     resolution: str
 
-
 class Beat(BaseModel):
+    model_config = ConfigDict(frozen=True)
     beat_id: int
     text: str
     estimated_word_count: int
@@ -31,8 +29,8 @@ class Beat(BaseModel):
     pacing_flag: bool = False
     pacing_feedback: Optional[str] = None
 
-
 class StoryboardState(BaseModel):
+    model_config = ConfigDict(frozen=True)
     raw_script: str
     target_wpm: int = 150
     beats: list[Beat] = Field(default_factory=list)
